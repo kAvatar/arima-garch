@@ -1,0 +1,252 @@
+---
+title: "Time Series Analysis with ARIMA-ARCH/GARCH Model"
+author: "Kanika,  Jing, Bomin, Ziyao"
+date: "23 November 2017"
+output: slidy_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Content
+This Project will provide the procedure to analyze and model financial times series in R environment using the time-domain method. 
+
+-The first part covers the stationary and differencing in time series.
+
+-The second and third parts are the core of the project and provide a guide to ARIMA and ARCH/GARCH. 
+
+-Next, it will look at the combined model as well as its performance and effectiveness in modeling and forecasting the time series. 
+
+-Finally, summary of time series analysis method will be discussed.
+
+
+## Let's begin
+Dataset is Apple Stock Closing data from 2013-01 to 2017-01
+
+```{r, include=FALSE}
+library("tseries")
+library("forecast")
+```
+
+```{r, echo=TRUE}
+appl=read.csv("D:/Desktop/DirectMarketing/AAPL17.csv",header=T)
+appl.close=appl$Adj.Close 
+plot(appl.close,type='l',main='Apple Stock Price')
+```
+
+
+
+
+## Difference and Log
+The Series is showing Exponential Growth.
+
+In financial time series, it is often that the series is transformed by logging and then the differencing is performed. This is because Generally financial time series is usually exposed to exponential growth, and thus log transformation can smooth out (linearize) the series and differencing will help stabilize the variance of the time series.
+
+Differences of log prices represent the returns and are similar to percentage changes of stock prices.
+
+## Taking Difference
+```{r pressure, echo=TRUE}
+diff.appl=diff(appl.close)
+plot(diff.appl,type='l',main='Difference Apple')
+```
+
+
+
+
+## Taking log
+```{r, echo=TRUE}
+log.appl=log(appl.close)
+plot(log.appl,type='l',main='Log Apple')
+```
+
+
+
+## Taking Difference of Log
+
+```{r, echo=TRUE}
+difflog.appl=diff(log.appl)
+plot(difflog.appl,type='l',main='Difference Log Apple')
+```
+
+## ARIMA 
+
+-Lets Observe the autocorrelation ACF and partial autocorrelation  PACF of the series and try to find out the best model.
+
+-The parameters of ARIMA consist of three components:
+-p (autoregressive parameter)
+-d (number of differencing)
+-q (moving average parameters).
+
+## ACF of Logged Series
+```{r, echo=TRUE}
+acf.appl=acf(log.appl,main='ACF Apple',lag.max=100,ylim=c(-0.5,1))
+```
+
+
+## PACF of Logged Series
+```{r, echo=TRUE}
+pacf.appl=pacf(log.appl,main='PACF Apple',lag.max=100,ylim=c(-0.5,1))
+```
+
+## ACF of Differenced Series
+```{r, echo=TRUE}
+acf.appl=acf(difflog.appl,main='ACF Difference Log Apple',lag.max=100,ylim=c(-0.5,1))
+```
+
+## PACF of Differenced Series
+```{r, echo=TRUE}
+pacf.appl=pacf(difflog.appl,main='PACF Difference Log Apple',lag.max=100,ylim=c(-0.5,1))
+```
+
+## Note:
+-The ACF of Log Apple stock prices depicted that the auto correlation slowly decreases (not dies down). It is probably that the model needs differencing.
+
+-The PACF of Log Apple, indicating value at lag 1 and then PACF cuts off.The model for Log Apple stock price might be ARIMA(1,0,0).
+
+-The ACF of differences of log Apple show no significant lags (do not take into account lag 0).
+
+-The PACF of differences of log Apple, reflecting no significant lags. 
+
+This means that the model for differenced log Apple series is thus a white noise, and the original model resembles random walk model ARIMA(0,1,0).
+
+In fitting ARIMA model, the idea of parsimony is important in which the model should have as small parameters as possible yet still be capable of explaining the series.The more parameters the greater noise that can be introduced into the model and hence standard
+deviation.
+
+
+So Let's try to find the best Model in the next slide by comparing AIC(Akaike Information Criterion ) value of different models and select the one with the least AIC value.
+
+
+
+
+## Estmating ARIMA Model 
+```{r, echo=TRUE}
+arimatry = auto.arima(log.appl,ic="aic",allowdrift = FALSE,trace=TRUE)
+
+```
+## Best Fit ARIMA Model
+```{r, echo=TRUE}
+arima010=arima(log.appl,order=c(0,1,0))
+summary(arima010)
+```
+
+
+## Forecast the ARIMA Model
+```{r, echo=TRUE}
+forecast010step1<-forecast(arima010,1,level=95)
+forecast010=forecast(arima010,100,level=95)
+plot(forecast010step1)
+```
+
+
+## Diagnostic Check
+-We Need to observe the residual plot and its ACF, PACF and check Ljung-Box result.
+
+-The ARIMA model is best  for linear forecast for the series, and thus plays little role in forecasting model nonlinearly or to reflect the recent changes in the series.
+
+
+
+
+
+## Ploting resdiual
+```{r, echo=TRUE}
+res.arima010=arima010$res
+squared.res.arima010=res.arima010^2
+plot(squared.res.arima010,main='Squared Residuals')
+```
+
+
+
+## ACF  of Residuals
+```{r, echo=TRUE}
+acf.squared010=acf(squared.res.arima010,main='ACF Squared Residuals',lag.max=100,ylim=c(-0.5,1))
+
+```
+
+## ACF of Residuals
+```{r, echo=TRUE}
+pacf.squared010=pacf(squared.res.arima010,main='PACF Squared Residuals',lag.max=100,ylim=c(-0.5,1))
+```
+
+## ARCH/GARCH
+-The residual plot, ACF and PACF do not have any significant lag, indicating ARIMA(0,1,0) is a good model to represent the series but here is still some volatility in the residuas.
+
+-ARCH/GARCH should be used to model the volatility of the series using Conditional variance.
+
+
+-Not that we fit ARCH to the residuals from ARIMA model selected previously, not to the original series or log or differenced log series because we only want to model the noise of ARIMA model.
+-ARCH Model will help in normalizing data, stabilizing variance and reducing heteroskedasticity.
+
+## Fitting Model
+```{r, echo=TRUE}
+arch05=garch(res.arima010,order=c(0,5),trace=F)
+loglik05=logLik(arch05)
+AIC(arch05)
+summary(arch05)
+
+```
+## Dianogstic Check
+-P value of Ljung Box test is greater than 0.05, and so we cannot reject the hypothesis that the autocorrelation of residuals is different from 0. The model thus adequately represents the residuals.
+
+-It is noted that the 95% confident interval of ARIMA(0,1,0) is wider than that of the combined model ARIMA(0,1,0) - ARCH(5). This is because the latter reflects and incorporate recent changes and volatility of stock prices by analyzing the residuals and its conditional variances (the variances affected as new information comes in).
+
+Let's compute the conditional variance in the following steps.
+
+## Forecast
+```{r, echo=TRUE}
+forecast010step1=forecast(arima010,1,level=95) 
+forecast010=forecast(arima010,100,level=95)
+plot(forecast010)
+```
+
+## Conditional Variance 
+```{r, echo=TRUE}
+ht.arch05=arch05$fit[,1]^2 
+plot(ht.arch05,main='Conditional variances')
+```
+
+
+## Fitted Values
+```{r, echo=TRUE}
+fit010=fitted.values(arima010)
+low=fit010-1.96*sqrt(ht.arch05)
+high=fit010+1.96*sqrt(ht.arch05)
+plot(log.appl,type='l',main='Log Apple,Low,High')
+```
+
+## What's happening here?Do not get lost.
+Let's take look at Q-Q Plot of residuals of ARIMA-ARCH model to check the normality of the residuals.
+
+
+## QQ plot
+```{r, echo=TRUE}
+plot(log.appl,type='l',main='Log Apple,Low,High')
+lines(low,col='red')
+lines(high,col='blue')
+```
+
+
+## ARIMA + Arch Residuals
+```{r, echo=TRUE}
+archres=res.arima010/sqrt(ht.arch05)
+qqnorm(archres,main='ARIMA-ARCH Residuals')
+qqline(archres)
+```
+
+
+## Arima residuals
+```{r, echo=TRUE}
+qqnorm(res.arima010,main='ARIMA Residuals')
+qqline(res.arima010
+       
+       )
+```
+
+## Conclusion
+-The plot shows that residuals  of ARIMA/ARCH model (mixed model) are more  normally distributed . However Residuals of ARIMA model are roughly distributed.
+
+-ARIMA model focuses on analyzing time series linearly and it does not reflect recent changes as new information is available. The variance in ARIMA model is unconditional variance and remains constant. 
+
+-ARIMA is used together with ARCH/GARCH model. ARCH/GARCH is a method to measure volatility of the series, or more specifically, to model the noise term of ARIMA model. ARCH/GARCH incorporates new information and analyzes the series based on conditional variances where users can forecast future values with up-to-date information. 
+
+
